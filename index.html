@@ -138,6 +138,15 @@
   .char-row:last-child{ border-bottom:none; }
   .char-row:hover{ background:rgba(255,255,255,.02); }
 
+  .reorder-controls{ display:flex; flex-direction:column; gap:1px; flex-shrink:0; }
+  .reorder-btn{
+    background:var(--panel-2); border:1px solid var(--line); color:var(--dim);
+    width:16px; height:14px; line-height:1; font-size:8px; padding:0;
+    border-radius:3px; cursor:pointer; display:flex; align-items:center; justify-content:center;
+  }
+  .reorder-btn:hover:not(:disabled){ color:var(--gold); border-color:var(--gold); }
+  .reorder-btn:disabled{ opacity:.25; cursor:default; }
+
   .portrait{
     width:42px; height:42px; border-radius:9px; flex-shrink:0; overflow:hidden;
     background:var(--panel-2);
@@ -604,6 +613,20 @@ function renderIdentityBar(){
   };
 }
 
+function sortOwnerChars(chars){
+  // Default: sorted by level, highest first. Once a player manually reorders
+  // their list (see moveCharacter), every character in that list gets an
+  // explicit "order" field and that takes over from the level-based sort.
+  const allHaveOrder = chars.length > 0 && chars.every(c => typeof c.order === "number");
+  const sorted = chars.slice();
+  if(allHaveOrder){
+    sorted.sort((a,b) => a.order - b.order);
+  }else{
+    sorted.sort((a,b) => (Number(b.level)||0) - (Number(a.level)||0));
+  }
+  return sorted;
+}
+
 function scopedCharacters(){
   let chars = currentView === "mine" ? data.characters.filter(c=>c.ownerId===myOwnerId) : data.characters;
   if(searchQuery.trim()){
@@ -665,6 +688,30 @@ async function deleteCharacter(id){
   if(!char || !canEdit(char)) return;
   await mutateSharedData(fresh => {
     fresh.characters = fresh.characters.filter(c=>c.id!==id);
+  });
+  render();
+}
+
+async function moveCharacter(id, direction){
+  const char = data.characters.find(c=>c.id===id);
+  if(!char || !canEdit(char)) return;
+
+  // Quick local bounds check so a click at the top/bottom edge is a no-op
+  // without even hitting the network.
+  const localSorted = sortOwnerChars(data.characters.filter(c=>c.ownerId===char.ownerId));
+  const localIdx = localSorted.findIndex(c=>c.id===id);
+  if(localIdx === -1 || localIdx + direction < 0 || localIdx + direction >= localSorted.length) return;
+
+  await mutateSharedData(fresh => {
+    const freshOwnerChars = fresh.characters.filter(c=>c.ownerId===char.ownerId);
+    const freshSorted = sortOwnerChars(freshOwnerChars);
+    const idx = freshSorted.findIndex(c=>c.id===id);
+    const targetIdx = idx + direction;
+    if(idx === -1 || targetIdx < 0 || targetIdx >= freshSorted.length) return;
+    const tmp = freshSorted[idx];
+    freshSorted[idx] = freshSorted[targetIdx];
+    freshSorted[targetIdx] = tmp;
+    freshSorted.forEach((c, i) => { c.order = i; });
   });
   render();
 }
@@ -760,11 +807,18 @@ async function deleteBuild(charId, buildId){
   render();
 }
 
-function renderCharRow(c){
+function renderCharRow(c, isFirst, isLast){
   const expanded = expandedChars.has(c.id);
   const editable = canEdit(c);
   const builds = (c.builds || []).slice().sort((a,b)=>a.levelBracket-b.levelBracket);
   const isEditingChar = editingCharId === c.id;
+
+  const reorderControls = editable ? `
+    <div class="reorder-controls" onclick="event.stopPropagation();">
+      <button class="reorder-btn" ${isFirst ? "disabled" : ""} onclick="moveCharacter('${c.id}', -1)" title="Monter" aria-label="Monter">&#9650;</button>
+      <button class="reorder-btn" ${isLast ? "disabled" : ""} onclick="moveCharacter('${c.id}', 1)" title="Descendre" aria-label="Descendre">&#9660;</button>
+    </div>
+  ` : "";
 
   const badges = builds.slice(0,4).map(b => {
     const role = ROLE_MAP[b.role] || ROLES[2];
@@ -839,6 +893,7 @@ function renderCharRow(c){
 
   return `
     <div class="char-row" onclick="toggleCharExpand('${c.id}')">
+      ${reorderControls}
       <div class="portrait">${classIcon(c.class)}</div>
       <div class="char-info">
         <div class="char-name">${escapeHtml(c.name)}</div>
@@ -868,7 +923,8 @@ function renderOwnerGrid(){
 
   if(currentView === "mine"){
     grid.style.gridTemplateColumns = "1fr";
-    grid.innerHTML = `<div class="owner-card">${chars.map(renderCharRow).join("")}</div>`;
+    const sortedMine = sortOwnerChars(chars);
+    grid.innerHTML = `<div class="owner-card">${sortedMine.map((c,i)=>renderCharRow(c, i===0, i===sortedMine.length-1)).join("")}</div>`;
     return;
   }
 
@@ -883,7 +939,7 @@ function renderOwnerGrid(){
   });
 
   grid.innerHTML = ownerIds.map(ownerId => {
-    const ownerChars = chars.filter(c=>c.ownerId===ownerId);
+    const ownerChars = sortOwnerChars(chars.filter(c=>c.ownerId===ownerId));
     const ownerName = ownerChars[0].owner;
     const mine = ownerId === myOwnerId;
     const isExpanded = expandedOwners.has(ownerId);
@@ -896,7 +952,7 @@ function renderOwnerGrid(){
           <span class="name">${escapeHtml(ownerName)}${mine ? " (toi)" : ""}</span>
           <span class="tag">${ownerChars.length} perso${ownerChars.length>1?"s":""}</span>
         </div>
-        ${visibleChars.map(renderCharRow).join("")}
+        ${visibleChars.map(c => renderCharRow(c, c.id===ownerChars[0].id, c.id===ownerChars[ownerChars.length-1].id)).join("")}
         ${remaining > 0 ? `<button class="more-toggle" onclick="toggleOwnerExpand('${ownerId}')">${remaining} personnage${remaining>1?"s":""} de plus</button>` : ""}
         ${isExpanded && ownerChars.length > 3 ? `<button class="more-toggle" onclick="toggleOwnerExpand('${ownerId}')">Réduire</button>` : ""}
       </div>
