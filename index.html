@@ -224,6 +224,56 @@
   .identity-screen input{ width:100%; margin-bottom:12px; text-align:center; }
 
   #loading{ text-align:center; padding:60px 0; color:var(--dim); font-size:13px; }
+
+  /* ÉVÉNEMENTS */
+  .toggle-ev{ background:none; border:1px dashed var(--line); border-radius:10px; color:var(--dim); padding:11px; width:100%; font-family:'Work Sans',sans-serif; font-size:12px; cursor:pointer; transition:all .2s; display:flex; align-items:center; justify-content:center; gap:8px; margin-bottom:14px; }
+  .toggle-ev:hover{ border-color:var(--violet); color:var(--paper); }
+
+  .ev-form{ background:var(--panel-2); border:1px solid var(--line); border-radius:12px; padding:18px; margin-bottom:14px; }
+  .ev-form .form-grid{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px; }
+  .ev-form .form-field{ display:flex; flex-direction:column; gap:4px; }
+  .ev-form .form-field.full{ grid-column:1/-1; }
+  .ev-form .form-label{ font-size:10px; color:var(--dim); letter-spacing:.5px; text-transform:uppercase; }
+  .ev-form .form-field input, .ev-form .form-field select{ width:100%; }
+  .ev-slots-row{ display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:12px; }
+  .ev-slots-row label{ font-size:10px; color:var(--dim); display:block; margin-bottom:3px; }
+
+  .event-list{ display:flex; flex-direction:column; gap:12px; margin-bottom:14px; }
+  .ev-card{ background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:16px; transition:border-color .2s; }
+  .ev-card:hover{ border-color:var(--violet); }
+  .ev-head{ display:flex; justify-content:space-between; align-items:flex-start; gap:8px; margin-bottom:7px; }
+  .ev-title{ font-family:'Cinzel',serif; font-size:14px; color:var(--gold); }
+  .ev-dungeon{ font-size:11px; color:var(--dim); margin-top:2px; }
+  .ev-meta{ display:flex; flex-wrap:wrap; gap:10px; font-size:11px; color:var(--dim); margin-bottom:9px; }
+  .ev-note{ font-size:11px; color:var(--dim); border-left:2px solid var(--violet); padding-left:9px; margin-bottom:9px; }
+
+  .role-compo{ display:flex; gap:7px; margin-bottom:8px; flex-wrap:wrap; }
+  .role-chip{ font-size:11px; padding:2px 9px; border-radius:20px; display:flex; align-items:center; gap:4px; border:1px solid; }
+  .role-chip.tank{ background:rgba(79,143,209,.12); color:var(--tank); border-color:rgba(79,143,209,.3); }
+  .role-chip.support{ background:rgba(201,161,63,.12); color:var(--support); border-color:rgba(201,161,63,.3); }
+  .role-chip.dps{ background:rgba(209,97,90,.12); color:var(--dps); border-color:rgba(209,97,90,.3); }
+
+  .prog{ height:4px; background:rgba(255,255,255,.07); border-radius:4px; margin-bottom:10px; overflow:hidden; }
+  .prog-fill{ height:100%; border-radius:4px; background:var(--violet); transition:width .3s; }
+
+  .reg-list{ display:flex; flex-wrap:wrap; gap:5px; margin-bottom:9px; }
+  .reg-chip{ background:var(--panel-2); border:1px solid var(--line); border-radius:20px; padding:3px 10px; font-size:11px; color:var(--paper); display:flex; align-items:center; gap:5px; }
+  .reg-chip .char-hint{ opacity:.55; font-size:10px; }
+  .reg-rm{ background:none; border:none; cursor:pointer; color:var(--dim); padding:0; font-size:10px; line-height:1; }
+  .reg-rm:hover{ color:var(--dps); }
+
+  .status-pill{ font-size:10px; padding:3px 10px; border-radius:20px; font-weight:600; white-space:nowrap; }
+  .status-pill.open{ background:rgba(82,192,184,.12); color:var(--teal); border:1px solid rgba(82,192,184,.3); }
+  .status-pill.full{ background:rgba(145,105,224,.12); color:var(--violet); border:1px solid rgba(145,105,224,.3); }
+  .status-pill.past{ background:rgba(255,255,255,.05); color:var(--dim); border:1px solid var(--line); }
+
+  .ev-footer{ display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; border-top:1px solid var(--line); padding-top:11px; margin-top:2px; }
+  .reg-area{ display:flex; gap:5px; align-items:center; flex-wrap:wrap; }
+  .reg-area select{ font-size:11px; padding:5px 8px; }
+  .lock-hint{ text-align:center; font-size:11px; color:var(--dim); padding:8px 0 0; font-style:italic; }
+  .ev-actions{ display:flex; gap:5px; }
+  .ev-rm{ background:none; border:none; color:var(--dim); cursor:pointer; font-size:13px; padding:0 3px; }
+  .ev-rm:hover{ color:var(--dps); }
 </style>
 </head>
 <body>
@@ -242,6 +292,7 @@
     <div class="pill-tabs" id="pillTabs">
       <button class="pill-tab" id="tabMine">Mon compte</button>
       <button class="pill-tab" id="tabAll">Tous les personnages <span class="count" id="allCount">0</span></button>
+      <button class="pill-tab" id="tabEvents">Événements</button>
       <button class="pill-tab" id="tabProfile">Mon profil</button>
     </div>
 
@@ -262,6 +313,7 @@
 
     <div id="addCharForm"></div>
     <div id="profileView"></div>
+    <div id="eventsView"></div>
     <div class="owner-grid" id="ownerGrid"></div>
     <div class="empty-state" id="emptyState" style="display:none;">
       <div class="big">Aucun personnage pour l'instant</div>
@@ -327,6 +379,8 @@ let expandedChars = new Set();
 let expandedOwners = new Set();
 let editingCharId = null;
 let editingBuildId = null;
+let showAddEvent = false;
+let editingEventId = null;
 
 function uid(){ return Math.random().toString(36).slice(2, 10); }
 
@@ -427,6 +481,7 @@ async function loadData(){
   }catch(e){ data = { characters: [] }; }
   if(!data.characters) data.characters = [];
   if(!data.profiles) data.profiles = {};
+  if(!data.events) data.events = [];
 
   document.getElementById("loading").style.display = "none";
   if(!myName || !myOwnerId){ renderIdentityScreen(); }
@@ -442,6 +497,7 @@ async function fetchFreshData(){
   }catch(e){ /* keep default empty structure if the bin is unreachable */ }
   if(!fresh.characters) fresh.characters = [];
   if(!fresh.profiles) fresh.profiles = {};
+  if(!fresh.events) fresh.events = [];
   return fresh;
 }
 
@@ -569,7 +625,7 @@ function canEdit(char){ return char.ownerId === myOwnerId; }
 
 function render(){
   applyAccentColor();
-  const titles = { mine: `Persos de ${myName}`, all: "Persos de la Guilde", profile: "Mon profil" };
+  const titles = { mine: `Persos de ${myName}`, all: "Persos de la Guilde", events: "Événements", profile: "Mon profil" };
   document.getElementById("pageTitle").textContent = titles[currentView];
   document.getElementById("allCount").textContent = data.characters.length;
 
@@ -583,12 +639,16 @@ function render(){
   document.getElementById("addCharForm").style.display = showRoster ? "block" : "none";
   document.getElementById("ownerGrid").style.display = showRoster ? "grid" : "none";
   document.getElementById("profileView").style.display = currentView === "profile" ? "block" : "none";
+  document.getElementById("eventsView").style.display = currentView === "events" ? "block" : "none";
   document.getElementById("bottomHint").style.display = showRoster ? "block" : "none";
 
   if(showRoster){
     renderStats();
     renderAddCharForm();
     renderOwnerGrid();
+  }else if(currentView === "events"){
+    document.getElementById("emptyState").style.display = "none";
+    renderEventsView();
   }else{
     document.getElementById("emptyState").style.display = "none";
     renderProfileView();
@@ -598,6 +658,7 @@ function render(){
 function renderTabs(){
   document.getElementById("tabMine").classList.toggle("active", currentView === "mine");
   document.getElementById("tabAll").classList.toggle("active", currentView === "all");
+  document.getElementById("tabEvents").classList.toggle("active", currentView === "events");
   document.getElementById("tabProfile").classList.toggle("active", currentView === "profile");
 }
 
@@ -965,6 +1026,293 @@ function toggleOwnerExpand(ownerId){
   render();
 }
 
+// ---------- Événements ----------
+
+function eventRoleCounts(ev){
+  const counts = { tank: 0, support: 0, dps: 0 };
+  (ev.registrations || []).forEach(r => { if(counts[r.role] !== undefined) counts[r.role]++; });
+  return counts;
+}
+
+function eventTotalSlots(ev){
+  const slots = ev.slots || {};
+  return (Number(slots.tank)||0) + (Number(slots.support)||0) + (Number(slots.dps)||0);
+}
+
+function eventIsPast(ev){
+  if(!ev.date) return false;
+  const dt = new Date(ev.date + "T" + (ev.time || "23:59"));
+  return dt.getTime() < Date.now();
+}
+
+function eventIsFull(ev){
+  const counts = eventRoleCounts(ev);
+  const slots = ev.slots || {};
+  return ["tank","support","dps"].every(r => (Number(slots[r])||0) === 0 || counts[r] >= Number(slots[r]));
+}
+
+function sortEvents(events){
+  return events.slice().sort((a,b) => {
+    const aPast = eventIsPast(a), bPast = eventIsPast(b);
+    if(aPast !== bPast) return aPast ? 1 : -1; // upcoming first
+    const da = (a.date||"") + "T" + (a.time||"00:00");
+    const db = (b.date||"") + "T" + (b.time||"00:00");
+    return aPast ? db.localeCompare(da) : da.localeCompare(db); // upcoming ascending, past most-recent-first
+  });
+}
+
+function renderEventsView(){
+  const el = document.getElementById("eventsView");
+  const events = sortEvents(data.events || []);
+
+  const toggleBtn = `<button class="toggle-ev" id="btnToggleAddEvent">${showAddEvent ? "− Fermer le formulaire" : "+ Organiser un événement"}</button>`;
+  const form = showAddEvent ? renderEventForm() : "";
+
+  const list = events.length ? `<div class="event-list">${events.map(renderEventCard).join("")}</div>` : `
+    <div class="empty-state">
+      <div class="big">Aucun événement prévu</div>
+      <div>Organise une sortie donjon pour que la guilde puisse s'inscrire.</div>
+    </div>
+  `;
+
+  el.innerHTML = toggleBtn + form + list;
+
+  document.getElementById("btnToggleAddEvent").onclick = ()=>{ showAddEvent = !showAddEvent; editingEventId = null; render(); };
+  if(showAddEvent) wireEventForm();
+  wireEventCards(events);
+}
+
+function renderEventForm(){
+  const ev = editingEventId ? data.events.find(e=>e.id===editingEventId) : null;
+  const slots = (ev && ev.slots) || { tank:0, support:0, dps:0 };
+  return `
+    <div class="ev-form">
+      <div class="form-grid">
+        <div class="form-field full">
+          <span class="form-label">Titre</span>
+          <input type="text" id="evTitle" placeholder="Ex. Frigost 3, montée de niveau..." value="${ev ? escapeHtml(ev.title) : ""}">
+        </div>
+        <div class="form-field full">
+          <span class="form-label">Donjon / Activité</span>
+          <input type="text" id="evDungeon" placeholder="Ex. Donjon du Comte Harebourg" value="${ev ? escapeHtml(ev.dungeon||"") : ""}">
+        </div>
+        <div class="form-field">
+          <span class="form-label">Date</span>
+          <input type="date" id="evDate" value="${ev ? escapeHtml(ev.date||"") : ""}">
+        </div>
+        <div class="form-field">
+          <span class="form-label">Heure</span>
+          <input type="time" id="evTime" value="${ev ? escapeHtml(ev.time||"") : ""}">
+        </div>
+        <div class="form-field full">
+          <span class="form-label">Note (optionnel)</span>
+          <input type="text" id="evNote" placeholder="Précisions, niveau conseillé..." value="${ev ? escapeHtml(ev.note||"") : ""}">
+        </div>
+      </div>
+      <div class="ev-slots-row">
+        <div><label>Places Tank</label><input type="number" id="evSlotTank" min="0" max="20" value="${slots.tank||0}"></div>
+        <div><label>Places Support</label><input type="number" id="evSlotSupport" min="0" max="20" value="${slots.support||0}"></div>
+        <div><label>Places DPS</label><input type="number" id="evSlotDps" min="0" max="20" value="${slots.dps||0}"></div>
+      </div>
+      <div class="form-actions">
+        ${ev ? `<button class="btn btn-ghost btn-sm" id="btnCancelEvent">Annuler</button>` : ""}
+        <button class="btn btn-primary btn-sm" id="btnConfirmEvent">${ev ? "Enregistrer les modifications" : "Créer l'événement"}</button>
+      </div>
+    </div>
+  `;
+}
+
+function wireEventForm(){
+  const cancelBtn = document.getElementById("btnCancelEvent");
+  if(cancelBtn) cancelBtn.onclick = ()=>{ editingEventId = null; showAddEvent = false; render(); };
+  document.getElementById("btnConfirmEvent").onclick = editingEventId ? saveEditEvent : addEvent;
+}
+
+function renderEventCard(ev){
+  const counts = eventRoleCounts(ev);
+  const total = eventTotalSlots(ev);
+  const filled = counts.tank + counts.support + counts.dps;
+  const past = eventIsPast(ev);
+  const full = eventIsFull(ev);
+  const statusClass = past ? "past" : (full ? "full" : "open");
+  const statusLabel = past ? "Terminé" : (full ? "Complet" : "Ouvert");
+  const canManage = ev.createdBy === myOwnerId;
+
+  const roleCompo = ["tank","support","dps"].filter(r => Number((ev.slots||{})[r])>0).map(r => {
+    const role = ROLE_MAP[r];
+    return `<span class="role-chip ${r}">${roleIcon(r)} ${role.label} ${counts[r]}/${(ev.slots||{})[r]}</span>`;
+  }).join("");
+
+  const regChips = (ev.registrations||[]).map(r => `
+    <span class="reg-chip">
+      ${roleIcon(r.role)} ${escapeHtml(r.charName)} <span class="char-hint">(${escapeHtml(r.ownerName)})</span>
+      ${(r.ownerId===myOwnerId || canManage) ? `<button class="reg-rm" onclick="unregisterFromEvent('${ev.id}','${r.id}')" title="Retirer">x</button>` : ""}
+    </span>
+  `).join("") || `<span class="empty">Personne inscrit pour l'instant.</span>`;
+
+  const myChars = data.characters.filter(c=>c.ownerId===myOwnerId);
+  const alreadyRegisteredCharIds = new Set((ev.registrations||[]).map(r=>r.charId));
+  const availableChars = myChars.filter(c=>!alreadyRegisteredCharIds.has(c.id));
+  const openRoles = ["tank","support","dps"].filter(r => Number((ev.slots||{})[r])>0 && counts[r] < Number((ev.slots||{})[r]));
+
+  let registerArea = "";
+  if(past){
+    registerArea = `<div class="lock-hint">Cet événement est terminé.</div>`;
+  }else if(full){
+    registerArea = `<div class="lock-hint">Toutes les places sont prises.</div>`;
+  }else if(availableChars.length === 0){
+    registerArea = `<div class="lock-hint">Tous tes personnages sont déjà inscrits.</div>`;
+  }else{
+    registerArea = `
+      <div class="reg-area">
+        <select id="regChar-${ev.id}">${availableChars.map(c=>`<option value="${c.id}">${escapeHtml(c.name)} (${escapeHtml(c.class)})</option>`).join("")}</select>
+        <select id="regRole-${ev.id}">${openRoles.map(r=>`<option value="${r}">${ROLE_MAP[r].label}</option>`).join("")}</select>
+        <button class="btn btn-sm btn-primary" onclick="registerToEvent('${ev.id}')">S'inscrire</button>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="ev-card">
+      <div class="ev-head">
+        <div>
+          <div class="ev-title">${escapeHtml(ev.title)}</div>
+          ${ev.dungeon ? `<div class="ev-dungeon">${escapeHtml(ev.dungeon)}</div>` : ""}
+        </div>
+        <div class="ev-actions">
+          <span class="status-pill ${statusClass}">${statusLabel}</span>
+          ${canManage ? `
+            <button class="ev-rm" onclick="startEditEvent('${ev.id}')" title="Modifier">&#9998;</button>
+            <button class="ev-rm" onclick="deleteEvent('${ev.id}')" title="Supprimer">x</button>
+          ` : ""}
+        </div>
+      </div>
+      <div class="ev-meta">
+        ${ev.date ? `<span>&#128197; ${escapeHtml(ev.date)}${ev.time ? " à " + escapeHtml(ev.time) : ""}</span>` : ""}
+        <span>Organisé par ${escapeHtml(ev.createdByName)}</span>
+      </div>
+      ${ev.note ? `<div class="ev-note">${escapeHtml(ev.note)}</div>` : ""}
+      ${roleCompo ? `<div class="role-compo">${roleCompo}</div>` : ""}
+      ${total > 0 ? `<div class="prog"><div class="prog-fill" style="width:${Math.min(100, Math.round(filled/total*100))}%;"></div></div>` : ""}
+      <div class="reg-list">${regChips}</div>
+      <div class="ev-footer">${registerArea}</div>
+    </div>
+  `;
+}
+
+function wireEventCards(events){
+  // Individual button handlers are wired inline via onclick attributes above
+  // (mirrors the existing pattern used for character/build rows in this file).
+}
+
+async function addEvent(){
+  const title = document.getElementById("evTitle").value.trim();
+  if(!title) return;
+  const newEvent = {
+    id: uid(),
+    title,
+    dungeon: document.getElementById("evDungeon").value.trim(),
+    date: document.getElementById("evDate").value,
+    time: document.getElementById("evTime").value,
+    note: document.getElementById("evNote").value.trim(),
+    slots: {
+      tank: Number(document.getElementById("evSlotTank").value)||0,
+      support: Number(document.getElementById("evSlotSupport").value)||0,
+      dps: Number(document.getElementById("evSlotDps").value)||0,
+    },
+    registrations: [],
+    createdBy: myOwnerId,
+    createdByName: myName,
+  };
+  showAddEvent = false;
+  await mutateSharedData(fresh => {
+    if(!fresh.events) fresh.events = [];
+    fresh.events.push(newEvent);
+  });
+  render();
+}
+
+function startEditEvent(id){
+  const ev = data.events.find(e=>e.id===id);
+  if(!ev || ev.createdBy !== myOwnerId) return;
+  editingEventId = id;
+  showAddEvent = true;
+  render();
+}
+
+async function saveEditEvent(){
+  const id = editingEventId;
+  const ev = data.events.find(e=>e.id===id);
+  if(!ev || ev.createdBy !== myOwnerId) return;
+  const title = document.getElementById("evTitle").value.trim();
+  if(!title) return;
+  const updated = {
+    title,
+    dungeon: document.getElementById("evDungeon").value.trim(),
+    date: document.getElementById("evDate").value,
+    time: document.getElementById("evTime").value,
+    note: document.getElementById("evNote").value.trim(),
+    slots: {
+      tank: Number(document.getElementById("evSlotTank").value)||0,
+      support: Number(document.getElementById("evSlotSupport").value)||0,
+      dps: Number(document.getElementById("evSlotDps").value)||0,
+    },
+  };
+  editingEventId = null;
+  showAddEvent = false;
+  await mutateSharedData(fresh => {
+    const target = (fresh.events||[]).find(e=>e.id===id);
+    if(target) Object.assign(target, updated);
+  });
+  render();
+}
+
+async function deleteEvent(id){
+  const ev = data.events.find(e=>e.id===id);
+  if(!ev || ev.createdBy !== myOwnerId) return;
+  await mutateSharedData(fresh => {
+    fresh.events = (fresh.events||[]).filter(e=>e.id!==id);
+  });
+  render();
+}
+
+async function registerToEvent(eventId){
+  const charSelect = document.getElementById(`regChar-${eventId}`);
+  const roleSelect = document.getElementById(`regRole-${eventId}`);
+  if(!charSelect || !roleSelect || !charSelect.value || !roleSelect.value) return;
+  const charId = charSelect.value;
+  const role = roleSelect.value;
+  const char = data.characters.find(c=>c.id===charId);
+  if(!char || char.ownerId !== myOwnerId) return;
+
+  const registration = { id: uid(), ownerId: myOwnerId, ownerName: myName, charId, charName: char.name, role };
+
+  await mutateSharedData(fresh => {
+    const ev = (fresh.events||[]).find(e=>e.id===eventId);
+    if(!ev) return;
+    if(!ev.registrations) ev.registrations = [];
+    // Re-check slot availability and duplicate registration against the freshest data
+    const alreadyIn = ev.registrations.some(r=>r.charId===charId);
+    const slots = ev.slots || {};
+    const currentCount = ev.registrations.filter(r=>r.role===role).length;
+    if(alreadyIn || currentCount >= (Number(slots[role])||0)) return;
+    ev.registrations.push(registration);
+  });
+  render();
+}
+
+async function unregisterFromEvent(eventId, registrationId){
+  const ev = data.events.find(e=>e.id===eventId);
+  if(!ev) return;
+  const reg = (ev.registrations||[]).find(r=>r.id===registrationId);
+  if(!reg || (reg.ownerId !== myOwnerId && ev.createdBy !== myOwnerId)) return;
+  await mutateSharedData(fresh => {
+    const target = (fresh.events||[]).find(e=>e.id===eventId);
+    if(target) target.registrations = (target.registrations||[]).filter(r=>r.id!==registrationId);
+  });
+  render();
+}
+
 function renderProfileView(){
   const profile = getProfile(myOwnerId);
   const el = document.getElementById("profileView");
@@ -1032,6 +1380,7 @@ function renderProfileView(){
 document.getElementById("btnShowAddChar").onclick = ()=>{ showAddChar=true; render(); };
 document.getElementById("tabMine").onclick = async ()=>{ currentView="mine"; showAddChar=false; await refreshSharedData(); render(); };
 document.getElementById("tabAll").onclick = async ()=>{ currentView="all"; showAddChar=false; await refreshSharedData(); render(); };
+document.getElementById("tabEvents").onclick = async ()=>{ currentView="events"; showAddChar=false; await refreshSharedData(); render(); };
 document.getElementById("tabProfile").onclick = async ()=>{ currentView="profile"; showAddChar=false; await refreshSharedData(); render(); };
 document.getElementById("searchInput").oninput = (e)=>{ searchQuery = e.target.value; renderOwnerGrid(); };
 
