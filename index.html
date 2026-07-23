@@ -363,6 +363,13 @@
   }
   .evt-tranche-done{ background:rgba(82,192,184,.14); color:var(--teal); border-color:rgba(82,192,184,.35); }
   .evt-tranche-todo{ background:var(--panel-2); color:var(--dim); border-color:var(--line); }
+  .evt-tranche-inactive{
+    background:repeating-linear-gradient(45deg, var(--panel-2), var(--panel-2) 4px, var(--line) 4px, var(--line) 8px);
+    color:var(--dim); text-decoration:line-through; opacity:.65; border-color:var(--line);
+  }
+  .evt-tranche-badge.evt-editable{ cursor:pointer; }
+  .evt-tranche-badge.evt-editable:hover{ outline:2px solid var(--violet); }
+  .evt-legend{ font-size:11px; color:var(--dim); display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:0 0 10px; }
   .evt-history-wrap{ overflow-x:auto; }
   #evt-history-table{ width:100%; border-collapse:collapse; font-size:12px; white-space:nowrap; }
   #evt-history-table th, #evt-history-table td{ padding:7px 10px; border-bottom:1px solid var(--line); text-align:left; color:var(--paper); }
@@ -464,6 +471,25 @@ const JSONBIN_ID = "6a595f66f5f4af5e2999e478";
 const JSONBIN_KEY = "$2a$10$RjwfAAhF49BD4hY6ogJRd.vkNElbn2/Ox6KKoESsRt6SFiJr/hrCy";
 const JSONBIN_BASE = "https://api.jsonbin.io/v3/b/" + JSONBIN_ID;
 const IDENTITY_STORAGE_KEY = "persos-wakfu-identity-v3"; // localStorage key, per-browser only
+
+// --- Bin JSONBin dédié à l'event Tirage (séparé du bin des persos ci-dessus) ---
+// Créé via seed_event_bin.py (bot Discord). Utilise une Access Key restreinte
+// à ce seul bin (pas la Master Key) : Dashboard JSONBin > API Keys.
+const JSONBIN_EVENT_ID = "COLLE_ICI_LE_BIN_ID_EVENT";
+const JSONBIN_EVENT_KEY = "COLLE_ICI_L_ACCESS_KEY_EVENT";
+const JSONBIN_EVENT_BASE = "https://api.jsonbin.io/v3/b/" + JSONBIN_EVENT_ID;
+
+// URL du webhook Discord (salon > Intégrations > Webhooks). Visible dans le
+// code source du site — accepté comme risque mineur pour ce site de guilde.
+const DISCORD_WEBHOOK_URL = "COLLE_ICI_L_URL_DU_WEBHOOK_DISCORD";
+
+// Pseudos autorisés à lancer un tirage / griser une tranche (comparaison
+// insensible à la casse). Complète cette liste avec les organisateurs de la guilde.
+const ORGANISATEUR_NAMES = ["Nyte"];
+function isOrganisateur(){
+  if(!myName) return false;
+  return ORGANISATEUR_NAMES.some(n => n.trim().toLowerCase() === myName.trim().toLowerCase());
+}
 
 let data = { characters: [], profiles: {} };
 let myName = null;
@@ -1655,23 +1681,126 @@ async function unregisterFromEvent(eventId, registrationId){
   render();
 }
 
-// ---------- Tirage (données poussées par le bot Discord dans event-data.json) ----------
+// ---------- Tirage (bin JSONBin partagé avec le bot Discord) ----------
 
 async function loadTirageData(force){
   if(tirageData && !force) return; // already loaded once this session; re-render is enough
   tirageStatus = "loading";
   renderTirageView();
   try{
-    // cache: 'no-store' pour toujours avoir la dernière version poussée par le bot
-    const res = await fetch("./event-data.json", { cache: "no-store" });
-    if(!res.ok) throw new Error("HTTP " + res.status);
-    tirageData = await res.json();
+    const res = await fetchWithRetry(JSONBIN_EVENT_BASE + "/latest", { headers: { "X-Access-Key": JSONBIN_EVENT_KEY } });
+    const json = await res.json();
+    tirageData = json.record;
     tirageStatus = "ok";
   }catch(err){
-    console.error("Erreur de chargement de event-data.json :", err);
+    console.error("Erreur de chargement du bin event :", err);
     tirageStatus = "error";
   }
   renderTirageView();
+}
+
+async function saveTirageData(record){
+  await fetchWithRetry(JSONBIN_EVENT_BASE, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", "X-Access-Key": JSONBIN_EVENT_KEY },
+    body: JSON.stringify(record),
+  });
+}
+
+async function notifyDiscordTirage(record){
+  if(!DISCORD_WEBHOOK_URL || DISCORD_WEBHOOK_URL.startsWith("COLLE_ICI")) return; // pas configuré, on skip silencieusement
+  const current = record.tirage_actuel;
+  const donjonValue = current.url ? `[${current.donjon}](${current.url})` : current.donjon;
+  const embed = {
+    title: `🎲 Tirage de la semaine ${current.semaine}`,
+    color: 0x9169e0,
+    fields: [
+      { name: "Tranche de modulation", value: String(current.tranche), inline: true },
+      { name: "Donjon", value: donjonValue, inline: true },
+    ],
+  };
+  try{
+    await fetch(DISCORD_WEBHOOK_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ embeds: [embed] }),
+    });
+  }catch(err){
+    console.error("Erreur d'envoi du webhook Discord :", err);
+    // Le tirage reste valide côté bin même si la notification Discord échoue.
+  }
+}
+
+function pickRandomFrom(arr){ return arr[Math.floor(Math.random() * arr.length)]; }
+
+async function launchTirage(){
+  const btn = document.getElementById("btnLaunchTirage");
+  if(btn){ btn.disabled = true; btn.textContent = "Tirage en cours…"; }
+
+  try{
+    const res = await fetchWithRetry(JSONBIN_EVENT_BASE + "/latest", { headers: { "X-Access-Key": JSONBIN_EVENT_KEY } });
+    const record = (await res.json()).record;
+
+    let available = (record.tranches||[]).filter(t => t.active && !t.tiree);
+    let poolWasReset = false;
+    if(available.length === 0){
+      (record.tranches||[]).forEach(t => { if(t.active) t.tiree = false; });
+      record.cycle_number = (record.cycle_number||1) + 1;
+      poolWasReset = true;
+      available = (record.tranches||[]).filter(t => t.active);
+    }
+    if(available.length === 0){
+      throw new Error("Aucune tranche active. Réactive au moins une tranche avant de tirer.");
+    }
+
+    const chosenTranche = pickRandomFrom(available);
+    if(!chosenTranche.donjons || chosenTranche.donjons.length === 0){
+      throw new Error(`Aucun donjon enregistré pour la tranche ${chosenTranche.tranche}.`);
+    }
+    const chosenDonjon = pickRandomFrom(chosenTranche.donjons);
+    chosenTranche.tiree = true;
+
+    const previousWeeks = (record.historique||[]).map(h => h.semaine);
+    const currentWeek = record.tirage_actuel ? record.tirage_actuel.semaine : 0;
+    const semaine = Math.max(0, ...previousWeeks, currentWeek) + 1;
+
+    const nowIso = new Date().toISOString();
+    const newEntry = {
+      semaine, tranche: chosenTranche.tranche, donjon: chosenDonjon.nom, url: chosenDonjon.url,
+      montant: null, gagnants: [], date: nowIso,
+    };
+    record.historique = record.historique || [];
+    record.historique.push(newEntry);
+    record.tirage_actuel = { semaine, tranche: chosenTranche.tranche, donjon: chosenDonjon.nom, url: chosenDonjon.url };
+
+    await saveTirageData(record);
+    await notifyDiscordTirage(record);
+
+    tirageData = record;
+    renderTirageView();
+    if(poolWasReset) alert("Toutes les tranches actives avaient été tirées : le pool a été réinitialisé pour un nouveau cycle.");
+  }catch(err){
+    console.error("Erreur lors du tirage :", err);
+    alert("Le tirage a échoué : " + err.message);
+  }finally{
+    if(btn){ btn.disabled = false; btn.textContent = "🎲 Lancer le tirage de la semaine"; }
+  }
+}
+
+async function toggleTrancheActive(trancheNumber){
+  try{
+    const res = await fetchWithRetry(JSONBIN_EVENT_BASE + "/latest", { headers: { "X-Access-Key": JSONBIN_EVENT_KEY } });
+    const record = (await res.json()).record;
+    const tranche = (record.tranches||[]).find(t => t.tranche === trancheNumber);
+    if(!tranche) return;
+    tranche.active = !tranche.active;
+    await saveTirageData(record);
+    tirageData = record;
+    renderTirageView();
+  }catch(err){
+    console.error("Erreur lors du changement de statut de la tranche :", err);
+    alert("Impossible de mettre à jour la tranche : " + err.message);
+  }
 }
 
 function renderTirageView(){
@@ -1685,13 +1814,14 @@ function renderTirageView(){
     el.innerHTML = `
       <div class="empty-state">
         <div class="big">Impossible de charger les données du tirage</div>
-        <div>Le fichier <code>event-data.json</code> n'est peut-être pas encore présent à la racine du dépôt, ou le bot n'a pas encore poussé de données.</div>
+        <div>Vérifie que <code>JSONBIN_EVENT_ID</code> / <code>JSONBIN_EVENT_KEY</code> sont bien renseignés, et que le bin a été initialisé (<code>seed_event_bin.py</code>).</div>
       </div>
     `;
     return;
   }
 
   const d = tirageData;
+  const canOrganize = isOrganisateur();
   const current = d.tirage_actuel;
   const currentHtml = current ? (
     (current.url
@@ -1699,9 +1829,14 @@ function renderTirageView(){
       : `Semaine <b>${escapeHtml(String(current.semaine))}</b> — Tranche <b>${escapeHtml(String(current.tranche))}</b> — <b>${escapeHtml(current.donjon)}</b>`)
   ) : "Aucun tirage pour l'instant.";
 
-  const tranchesHtml = (d.tranches||[]).map(t => `
-    <span class="evt-tranche-badge ${t.tiree ? "evt-tranche-done" : "evt-tranche-todo"}" title="${t.tiree ? "Déjà tirée ce cycle" : "Disponible"}">${escapeHtml(String(t.tranche))}</span>
-  `).join("");
+  const tranchesHtml = (d.tranches||[]).map(t => {
+    let stateClass = "evt-tranche-todo", title = "Disponible";
+    if(!t.active){ stateClass = "evt-tranche-inactive"; title = "Désactivée manuellement"; }
+    else if(t.tiree){ stateClass = "evt-tranche-done"; title = "Déjà tirée ce cycle"; }
+    const classAttr = `evt-tranche-badge ${stateClass}${canOrganize ? " evt-editable" : ""}`;
+    const clickAttr = canOrganize ? ` onclick="toggleTrancheActive(${JSON.stringify(t.tranche)})"` : "";
+    return `<span class="${classAttr}"${clickAttr} title="${title}">${escapeHtml(String(t.tranche))}</span>`;
+  }).join("");
 
   const historyRows = (d.historique||[]).slice().reverse().map(row => {
     const dateStr = row.date ? new Date(row.date).toLocaleDateString("fr-FR") : "—";
@@ -1723,10 +1858,18 @@ function renderTirageView(){
     <section class="evt-section">
       <h2>Tirage de la semaine</h2>
       <p class="evt-current-info">${currentHtml}</p>
+      ${canOrganize ? `<button class="btn btn-primary" id="btnLaunchTirage" style="margin-top:10px;">🎲 Lancer le tirage de la semaine</button>` : ""}
     </section>
 
     <section class="evt-section">
       <h2>Progression du cycle n°${escapeHtml(String(d.cycle_number ?? ""))}</h2>
+      ${canOrganize ? `
+        <p class="evt-legend">
+          <span class="evt-tranche-badge evt-tranche-todo">•</span> Disponible
+          <span class="evt-tranche-badge evt-tranche-done">•</span> Déjà tirée
+          <span class="evt-tranche-badge evt-tranche-inactive">•</span> Désactivée (clic pour basculer)
+        </p>
+      ` : ""}
       <div class="evt-tranches-grid">${tranchesHtml || '<span class="hint" style="margin:0;">Aucune tranche définie.</span>'}</div>
     </section>
 
@@ -1742,6 +1885,11 @@ function renderTirageView(){
       </div>
     </section>
   `;
+
+  if(canOrganize){
+    const launchBtn = document.getElementById("btnLaunchTirage");
+    if(launchBtn) launchBtn.onclick = launchTirage;
+  }
 }
 
 function renderProfileView(){
