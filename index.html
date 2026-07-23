@@ -371,6 +371,20 @@
   .evt-tranche-badge.evt-editable:hover{ outline:2px solid var(--violet); }
   .evt-legend{ font-size:11px; color:var(--dim); display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:0 0 10px; }
   .evt-history-wrap{ overflow-x:auto; }
+
+  .evt-roulette-overlay{
+    position:fixed; inset:0; background:rgba(19,16,31,.88); backdrop-filter:blur(4px);
+    display:flex; align-items:center; justify-content:center; z-index:9999; padding:16px;
+  }
+  .evt-roulette-box{
+    background:var(--panel); border:1px solid var(--line); border-radius:16px;
+    padding:22px; display:flex; flex-direction:column; align-items:center; gap:8px;
+    max-width:92vw; box-shadow:0 20px 60px rgba(0,0,0,.5);
+  }
+  .evt-roulette-title{ font-family:'Cinzel',serif; font-weight:600; font-size:14px; color:var(--paper); letter-spacing:.03em; }
+  .evt-roulette-pointer{ font-size:20px; color:var(--gold); line-height:1; margin-bottom:-6px; }
+  .evt-roulette-wheel-wrap{ will-change:transform; }
+  .evt-roulette-result{ font-weight:700; font-size:15px; min-height:20px; color:var(--teal); text-align:center; }
   #evt-history-table{ width:100%; border-collapse:collapse; font-size:12px; white-space:nowrap; }
   #evt-history-table th, #evt-history-table td{ padding:7px 10px; border-bottom:1px solid var(--line); text-align:left; color:var(--paper); }
   #evt-history-table th{ color:var(--dim); font-size:10px; text-transform:uppercase; letter-spacing:.06em; font-weight:600; }
@@ -472,23 +486,578 @@ const JSONBIN_KEY = "$2a$10$RjwfAAhF49BD4hY6ogJRd.vkNElbn2/Ox6KKoESsRt6SFiJr/hrC
 const JSONBIN_BASE = "https://api.jsonbin.io/v3/b/" + JSONBIN_ID;
 const IDENTITY_STORAGE_KEY = "persos-wakfu-identity-v3"; // localStorage key, per-browser only
 
-// --- Bin JSONBin dédié à l'event Tirage (séparé du bin des persos ci-dessus) ---
-// Créé via seed_event_bin.py (bot Discord). Utilise une Access Key restreinte
-// à ce seul bin (pas la Master Key) : Dashboard JSONBin > API Keys.
-const JSONBIN_EVENT_ID = "COLLE_ICI_LE_BIN_ID_EVENT";
-const JSONBIN_EVENT_KEY = "COLLE_ICI_L_ACCESS_KEY_EVENT";
-const JSONBIN_EVENT_BASE = "https://api.jsonbin.io/v3/b/" + JSONBIN_EVENT_ID;
-
-// URL du webhook Discord (salon > Intégrations > Webhooks). Visible dans le
-// code source du site — accepté comme risque mineur pour ce site de guilde.
-const DISCORD_WEBHOOK_URL = "COLLE_ICI_L_URL_DU_WEBHOOK_DISCORD";
+// --- Event Tirage : stocké dans CE MÊME bin, sous la clé wakfuEvent, à côté
+// de characters/profiles/events/accounts. Pas de service tiers, pas de bin
+// séparé, pas de connexion Discord — tout se fait ici, à la main.
+const WAKFU_EVENT_TRANCHES_SEED = [
+  {
+    "tranche": 20,
+    "tiree": false,
+    "active": true,
+    "donjons": [
+      {
+        "nom": "Pâturages des Bouftous",
+        "url": "https://methodwakfu.com/pvm/donjons/paturages-des-bouftous/"
+      },
+      {
+        "nom": "Le Tofulailler",
+        "url": "https://methodwakfu.com/pvm/donjons/le-tofulailler/"
+      },
+      {
+        "nom": "Larventura",
+        "url": "https://methodwakfu.com/pvm/donjons/larventura/"
+      }
+    ]
+  },
+  {
+    "tranche": 35,
+    "tiree": false,
+    "active": true,
+    "donjons": [
+      {
+        "nom": "Donjon des Abraknes",
+        "url": "https://methodwakfu.com/pvm/donjons/donjon-des-abraknes/"
+      },
+      {
+        "nom": "Le Caveau Relevé",
+        "url": "https://methodwakfu.com/pvm/donjons/le-caveau-releve/"
+      },
+      {
+        "nom": "Piou Lahoupe",
+        "url": "https://methodwakfu.com/pvm/donjons/piou-lahoupe/"
+      }
+    ]
+  },
+  {
+    "tranche": 50,
+    "tiree": false,
+    "active": true,
+    "donjons": [
+      {
+        "nom": "Le Papaturage Royal",
+        "url": "https://methodwakfu.com/pvm/donjons/le-papaturage-royal/"
+      },
+      {
+        "nom": "La Montagne Adezieu",
+        "url": "https://methodwakfu.com/pvm/donjons/la-montagne-adezieu/"
+      },
+      {
+        "nom": "Les Champs Pourchan",
+        "url": "https://methodwakfu.com/pvm/donjons/les-champs-pourchan/"
+      },
+      {
+        "nom": "La Tour Minérale (36)",
+        "url": "https://methodwakfu.com/pvm/donjons/tour-minerale-36/"
+      },
+      {
+        "nom": "Donjon Équipage du Poulpe",
+        "url": "https://methodwakfu.com/pvm/donjons/donjon-equipage-du-poulpe/"
+      },
+      {
+        "nom": "Donjon Morts-Brûlés",
+        "url": "https://methodwakfu.com/pvm/donjons/donjon-morts-brules/"
+      }
+    ]
+  },
+  {
+    "tranche": 65,
+    "tiree": false,
+    "active": true,
+    "donjons": [
+      {
+        "nom": "L'Antre Oublié",
+        "url": "https://methodwakfu.com/pvm/donjons/antre-oublie/"
+      },
+      {
+        "nom": "Donjon Bwork",
+        "url": "https://methodwakfu.com/pvm/donjons/donjon-bwork/"
+      },
+      {
+        "nom": "La Skouale Sèche",
+        "url": "https://methodwakfu.com/pvm/donjons/la-skouale-seche/"
+      },
+      {
+        "nom": "Donjon Mollusky",
+        "url": "https://methodwakfu.com/pvm/donjons/donjon-mollusky/"
+      },
+      {
+        "nom": "Tour des Miss Moches",
+        "url": "https://methodwakfu.com/pvm/donjons/tour-des-miss-moches/"
+      },
+      {
+        "nom": "Kokokolantha",
+        "url": "https://methodwakfu.com/pvm/donjons/kokokolantha/"
+      },
+      {
+        "nom": "Château des Cwabes",
+        "url": "https://methodwakfu.com/pvm/donjons/chateau-des-cwabes/"
+      },
+      {
+        "nom": "Donjon Marteaux-Aigris",
+        "url": null
+      }
+    ]
+  },
+  {
+    "tranche": 80,
+    "tiree": false,
+    "active": true,
+    "donjons": [
+      {
+        "nom": "Les Ratacombes",
+        "url": "https://methodwakfu.com/pvm/donjons/les-ratacombes/"
+      },
+      {
+        "nom": "Temple du Grand Orrok",
+        "url": null
+      },
+      {
+        "nom": "La Corbeau-Cave",
+        "url": "https://methodwakfu.com/pvm/donjons/la-corbeau-cave/"
+      },
+      {
+        "nom": "Truchière Abandonnée",
+        "url": null
+      },
+      {
+        "nom": "Domaine du Petit Groin",
+        "url": null
+      },
+      {
+        "nom": "Palais du Tsu",
+        "url": null
+      },
+      {
+        "nom": "Donjon Mulou",
+        "url": "https://methodwakfu.com/pvm/donjons/autel-de-la-lune/"
+      },
+      {
+        "nom": "Donjon Arakne",
+        "url": "https://methodwakfu.com/pvm/donjons/donjon-arakne/"
+      }
+    ]
+  },
+  {
+    "tranche": 95,
+    "tiree": false,
+    "active": true,
+    "donjons": [
+      {
+        "nom": "Sliptorium",
+        "url": "https://methodwakfu.com/pvm/donjons/sliptorium/"
+      },
+      {
+        "nom": "Le Misolée",
+        "url": null
+      },
+      {
+        "nom": "Château de Wagnar",
+        "url": "https://methodwakfu.com/pvm/donjons/chateau-wagnar/"
+      },
+      {
+        "nom": "Académie Trool",
+        "url": null
+      },
+      {
+        "nom": "Le Hammamamoule",
+        "url": null
+      },
+      {
+        "nom": "Caverne des Slekymoses",
+        "url": null
+      },
+      {
+        "nom": "Scarrière Abandonnée",
+        "url": "https://methodwakfu.com/pvm/donjons/scarriere-abandonnee/"
+      },
+      {
+        "nom": "Nécropoil de Morbax",
+        "url": null
+      }
+    ]
+  },
+  {
+    "tranche": 110,
+    "tiree": false,
+    "active": true,
+    "donjons": [
+      {
+        "nom": "Repaire des Super-Vilains",
+        "url": null
+      },
+      {
+        "nom": "L'Arène Dansante",
+        "url": null
+      },
+      {
+        "nom": "Le Glaglacier Cornu",
+        "url": null
+      },
+      {
+        "nom": "Niche du Yech'Ti'Wawa",
+        "url": "https://methodwakfu.com/pvm/donjons/niche-yech-ti-wawa/"
+      },
+      {
+        "nom": "Donjon Gelée",
+        "url": null
+      },
+      {
+        "nom": "Repaire des Magik Riktus",
+        "url": "https://methodwakfu.com/pvm/donjons/repaire-des-magik-riktus/"
+      },
+      {
+        "nom": "Chuchobase",
+        "url": null
+      }
+    ]
+  },
+  {
+    "tranche": 125,
+    "tiree": false,
+    "active": true,
+    "donjons": [
+      {
+        "nom": "Le Pot d'Hagën Glass",
+        "url": null
+      },
+      {
+        "nom": "Aile de l'Ambassadrice",
+        "url": null
+      },
+      {
+        "nom": "La Tour Gelée",
+        "url": "https://methodwakfu.com/pvm/donjons/la-tour-gelee/"
+      },
+      {
+        "nom": "Donjon Cacterre",
+        "url": "https://methodwakfu.com/pvm/donjons/donjon-cacterre/"
+      },
+      {
+        "nom": "Fosse du Tourmenteur",
+        "url": "https://methodwakfu.com/pvm/fosse-du-tourmenteur/"
+      },
+      {
+        "nom": "Caverne Smarrante",
+        "url": null
+      },
+      {
+        "nom": "Donjon Flaqueux",
+        "url": "https://methodwakfu.com/pvm/donjons/donjon-flaqueux/"
+      },
+      {
+        "nom": "La Pichine",
+        "url": null
+      }
+    ]
+  },
+  {
+    "tranche": 140,
+    "tiree": false,
+    "active": true,
+    "donjons": [
+      {
+        "nom": "Sanctuaire de Mihmol",
+        "url": "https://methodwakfu.com/pvm/sanctuaire-de-mihmol/"
+      },
+      {
+        "nom": "Donjon Noirespore",
+        "url": null
+      },
+      {
+        "nom": "Domaine de la Trouffe Salée",
+        "url": null
+      },
+      {
+        "nom": "Donjon Abraknyde",
+        "url": "https://methodwakfu.com/pvm/donjons/donjon-abraknyde/"
+      },
+      {
+        "nom": "Compost du grand Potofeu",
+        "url": "https://methodwakfu.com/pvm/donjons/compost-du-grand-potofeu/"
+      },
+      {
+        "nom": "Palais Lenald",
+        "url": null
+      },
+      {
+        "nom": "Jawdin de la Weine",
+        "url": null
+      }
+    ]
+  },
+  {
+    "tranche": 155,
+    "tiree": false,
+    "active": true,
+    "donjons": [
+      {
+        "nom": "Vignoble Ignoble",
+        "url": null
+      },
+      {
+        "nom": "Donjon Srambad",
+        "url": null
+      },
+      {
+        "nom": "Donjon Enutrosor",
+        "url": null
+      },
+      {
+        "nom": "Blopéra",
+        "url": "https://methodwakfu.com/pvm/donjons/blopera/"
+      },
+      {
+        "nom": "Source du Mal",
+        "url": "https://methodwakfu.com/pvm/donjons/source-du-mal/"
+      },
+      {
+        "nom": "Ruche-mère Sabléoptère",
+        "url": null
+      },
+      {
+        "nom": "Château du Wa Wabbit",
+        "url": null
+      },
+      {
+        "nom": "Laboratoire de Womewo",
+        "url": null
+      }
+    ]
+  },
+  {
+    "tranche": 170,
+    "tiree": false,
+    "active": true,
+    "donjons": [
+      {
+        "nom": "Fabrique Méka",
+        "url": "https://methodwakfu.com/pvm/donjons/fabrique-meka/"
+      },
+      {
+        "nom": "Donjon E-Bou",
+        "url": "https://methodwakfu.com/pvm/donjons/donjon-e-bou/"
+      },
+      {
+        "nom": "Repaire de Kali",
+        "url": "https://methodwakfu.com/pvm/donjons/repaire-de-kali/"
+      },
+      {
+        "nom": "Donjon Riktus Elite",
+        "url": "https://methodwakfu.com/pvm/donjons/donjon-riktus-elite/"
+      },
+      {
+        "nom": "Roub'Bar",
+        "url": null
+      },
+      {
+        "nom": "Le Lampionaute",
+        "url": "https://methodwakfu.com/pvm/donjons/lampionaute/"
+      },
+      {
+        "nom": "La Patapoutrerie",
+        "url": "https://methodwakfu.com/pvm/donjons/la-patapoutrerie/"
+      }
+    ]
+  },
+  {
+    "tranche": 185,
+    "tiree": false,
+    "active": true,
+    "donjons": [
+      {
+        "nom": "Donjon des Crocodailles",
+        "url": "https://methodwakfu.com/pvm/donjon-des-crocodailles/"
+      },
+      {
+        "nom": "Donjon des Kannivores",
+        "url": "https://methodwakfu.com/pvm/donjons/donjon-des-kannivores/"
+      },
+      {
+        "nom": "Donjon des Kannibouls",
+        "url": "https://methodwakfu.com/pvm/donjons/kannibouls/"
+      },
+      {
+        "nom": "Donjon des Tropikes",
+        "url": "https://methodwakfu.com/pvm/donjons/donjon-des-tropikes/"
+      },
+      {
+        "nom": "Cité Interdite",
+        "url": "https://methodwakfu.com/pvm/donjons/cite-interdite/"
+      },
+      {
+        "nom": "Donjon Gerbouille",
+        "url": "https://methodwakfu.com/pvm/donjons/donjon-gerbouille/"
+      }
+    ]
+  },
+  {
+    "tranche": 200,
+    "tiree": false,
+    "active": true,
+    "donjons": [
+      {
+        "nom": "Tanière des Blérox",
+        "url": "https://methodwakfu.com/pvm/donjons/taniere-des-blerox/"
+      },
+      {
+        "nom": "Volcan Or'Hodruin",
+        "url": "https://methodwakfu.com/pvm/donjons/volcan-orhodruin/"
+      },
+      {
+        "nom": "Sanctuaire des Dragoeufs",
+        "url": "https://methodwakfu.com/pvm/donjons/sanctuaire-des-dragoeufs/"
+      },
+      {
+        "nom": "La Crête Givrée",
+        "url": "https://methodwakfu.com/pvm/donjons/la-crete-givree/"
+      },
+      {
+        "nom": "La Tour Minérale (186)",
+        "url": null
+      },
+      {
+        "nom": "Tombeau de Pandala",
+        "url": "https://methodwakfu.com/pvm/donjons/tombeau-de-pandala/"
+      },
+      {
+        "nom": "Canyon des Fléopards",
+        "url": "https://methodwakfu.com/pvm/donjons/canyon-des-fleopards/"
+      },
+      {
+        "nom": "Usine Hibourg",
+        "url": "https://methodwakfu.com/pvm/donjons/usine-hibourg/"
+      }
+    ]
+  },
+  {
+    "tranche": 215,
+    "tiree": false,
+    "active": true,
+    "donjons": [
+      {
+        "nom": "La Tour Minérale (201)",
+        "url": null
+      },
+      {
+        "nom": "Donjon Toundrasoirs",
+        "url": null
+      },
+      {
+        "nom": "Donjon Crustargneux",
+        "url": "https://methodwakfu.com/pvm/donjons/donjon-crustargneux/"
+      },
+      {
+        "nom": "Donjon Cagnardeurs",
+        "url": null
+      },
+      {
+        "nom": "Donjon Vandaliénés",
+        "url": "https://methodwakfu.com/pvm/donjons/donjon-vandalienes/"
+      },
+      {
+        "nom": "Donjon Plantigardes",
+        "url": "https://methodwakfu.com/pvm/donjons/donjon-plantigardes/"
+      },
+      {
+        "nom": "Donjon Mansots",
+        "url": "https://methodwakfu.com/pvm/donjons/donjon-mansots/"
+      },
+      {
+        "nom": "Donjon Carapattes",
+        "url": null
+      }
+    ]
+  },
+  {
+    "tranche": 230,
+    "tiree": false,
+    "active": true,
+    "donjons": [
+      {
+        "nom": "Donjon Phytomorphes",
+        "url": "https://methodwakfu.com/pvm/donjons/donjon-phytomorphes/"
+      },
+      {
+        "nom": "Donjon Vidéants",
+        "url": "https://methodwakfu.com/pvm/donjons/donjon-videants/"
+      },
+      {
+        "nom": "Donjon Démhorribles",
+        "url": "https://methodwakfu.com/pvm/donjons/donjon-demhorribles/"
+      },
+      {
+        "nom": "Donjon Égarés",
+        "url": "https://methodwakfu.com/pvm/donjons/donjon-egares/"
+      },
+      {
+        "nom": "Donjon Ravageurs",
+        "url": "https://methodwakfu.com/pvm/donjons/donjon-ravageurs/"
+      },
+      {
+        "nom": "Donjon Steamers",
+        "url": "https://methodwakfu.com/pvm/donjons/donjon-steamers/"
+      },
+      {
+        "nom": "Donjon Poisseux Abyssaux",
+        "url": "https://methodwakfu.com/pvm/donjons/donjon-poisseux-abyssaux/"
+      },
+      {
+        "nom": "Nécromonde",
+        "url": null
+      }
+    ]
+  },
+  {
+    "tranche": 245,
+    "tiree": false,
+    "active": true,
+    "donjons": [
+      {
+        "nom": "Théâtre intemporel",
+        "url": null
+      },
+      {
+        "nom": "Donjon Machines de Nox",
+        "url": "https://methodwakfu.com/pvm/donjons/donjon-machines-de-nox/"
+      },
+      {
+        "nom": "Donjon Clan de Bworkana",
+        "url": "https://methodwakfu.com/pvm/donjons/donjon-clan-de-bworkana/"
+      },
+      {
+        "nom": "Donjon Savanastraux",
+        "url": "https://methodwakfu.com/pvm/donjons/donjon-savanastraux/"
+      },
+      {
+        "nom": "Donjon Primassifs",
+        "url": "https://methodwakfu.com/pvm/donjons/donjon-primassifs/"
+      },
+      {
+        "nom": "Donjon Férociraptors",
+        "url": "https://methodwakfu.com/pvm/donjons/donjon-ferociraptors/"
+      }
+    ]
+  }
+];
 
 // Pseudos autorisés à lancer un tirage / griser une tranche (comparaison
 // insensible à la casse). Complète cette liste avec les organisateurs de la guilde.
-const ORGANISATEUR_NAMES = ["Nyte"];
+const ORGANISATEUR_NAMES = ["Jigoku"];
 function isOrganisateur(){
   if(!myName) return false;
   return ORGANISATEUR_NAMES.some(n => n.trim().toLowerCase() === myName.trim().toLowerCase());
+}
+
+function ensureWakfuEventDefaults(fresh){
+  if(!fresh.wakfuEvent){
+    fresh.wakfuEvent = {
+      cycle_number: 1,
+      tranches: JSON.parse(JSON.stringify(WAKFU_EVENT_TRANCHES_SEED)),
+      tirage_actuel: null,
+      historique: [],
+    };
+  }
+  return fresh.wakfuEvent;
 }
 
 let data = { characters: [], profiles: {} };
@@ -503,8 +1072,6 @@ let editingCharId = null;
 let editingBuildId = null;
 let showAddEvent = false;
 let editingEventId = null;
-let tirageData = null;
-let tirageStatus = "idle"; // "idle" | "loading" | "ok" | "error"
 
 function uid(){ return Math.random().toString(36).slice(2, 10); }
 
@@ -638,6 +1205,7 @@ async function loadData(){
   if(!data.events) data.events = [];
   if(!data.accounts) data.accounts = {};
   if(!data.tombstones) data.tombstones = { characters: [], events: [], registrations: [] };
+  ensureWakfuEventDefaults(data);
   applyTombstones(data);
 
   document.getElementById("loading").style.display = "none";
@@ -658,6 +1226,7 @@ async function fetchFreshData(){
   if(!fresh.events) fresh.events = [];
   if(!fresh.accounts) fresh.accounts = {};
   if(!fresh.tombstones) fresh.tombstones = { characters: [], events: [], registrations: [] };
+  ensureWakfuEventDefaults(fresh);
   applyTombstones(fresh);
   return fresh;
 }
@@ -1681,105 +2250,192 @@ async function unregisterFromEvent(eventId, registrationId){
   render();
 }
 
-// ---------- Tirage (bin JSONBin partagé avec le bot Discord) ----------
+// ---------- Tirage (stocké dans data.wakfuEvent, même bin que les persos) ----------
 
-async function loadTirageData(force){
-  if(tirageData && !force) return; // already loaded once this session; re-render is enough
-  tirageStatus = "loading";
-  renderTirageView();
-  try{
-    const res = await fetchWithRetry(JSONBIN_EVENT_BASE + "/latest", { headers: { "X-Access-Key": JSONBIN_EVENT_KEY } });
-    const json = await res.json();
-    tirageData = json.record;
-    tirageStatus = "ok";
-  }catch(err){
-    console.error("Erreur de chargement du bin event :", err);
-    tirageStatus = "error";
-  }
-  renderTirageView();
-}
-
-async function saveTirageData(record){
-  await fetchWithRetry(JSONBIN_EVENT_BASE, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json", "X-Access-Key": JSONBIN_EVENT_KEY },
-    body: JSON.stringify(record),
-  });
-}
-
-async function notifyDiscordTirage(record){
-  if(!DISCORD_WEBHOOK_URL || DISCORD_WEBHOOK_URL.startsWith("COLLE_ICI")) return; // pas configuré, on skip silencieusement
-  const current = record.tirage_actuel;
-  const donjonValue = current.url ? `[${current.donjon}](${current.url})` : current.donjon;
-  const embed = {
-    title: `🎲 Tirage de la semaine ${current.semaine}`,
-    color: 0x9169e0,
-    fields: [
-      { name: "Tranche de modulation", value: String(current.tranche), inline: true },
-      { name: "Donjon", value: donjonValue, inline: true },
-    ],
-  };
-  try{
-    await fetch(DISCORD_WEBHOOK_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ embeds: [embed] }),
-    });
-  }catch(err){
-    console.error("Erreur d'envoi du webhook Discord :", err);
-    // Le tirage reste valide côté bin même si la notification Discord échoue.
-  }
+function trancheColor(t){
+  if(!t.active) return "#4a4560";
+  if(t.tiree) return "#52c0b8";
+  return "#9169e0";
 }
 
 function pickRandomFrom(arr){ return arr[Math.floor(Math.random() * arr.length)]; }
+
+// Décide ET enregistre le tirage en une seule opération sûre (re-fetch frais,
+// mutation, écriture) avant toute animation : la roulette ne fait que révéler
+// un résultat déjà acté, elle ne décide de rien elle-même.
+async function decideAndCommitDraw(){
+  let result = null;
+  let failReason = null;
+
+  await mutateSharedData(fresh => {
+    const evt = ensureWakfuEventDefaults(fresh);
+
+    let available = evt.tranches.filter(t => t.active && !t.tiree);
+    let poolWasReset = false;
+    if(available.length === 0){
+      evt.tranches.forEach(t => { if(t.active) t.tiree = false; });
+      evt.cycle_number = (evt.cycle_number || 1) + 1;
+      poolWasReset = true;
+      available = evt.tranches.filter(t => t.active);
+    }
+    if(available.length === 0){
+      failReason = "Aucune tranche active. Réactive au moins une tranche avant de tirer.";
+      return;
+    }
+
+    // Snapshot AVANT de marquer le gagnant : les couleurs de la roue reflètent
+    // l'état réel au moment du tirage, sans révéler le résultat par la couleur.
+    const tranchesSnapshot = JSON.parse(JSON.stringify(evt.tranches));
+
+    const chosenTranche = pickRandomFrom(available);
+    if(!chosenTranche.donjons || chosenTranche.donjons.length === 0){
+      failReason = `Aucun donjon enregistré pour la tranche ${chosenTranche.tranche}.`;
+      return;
+    }
+    const donjonsSnapshot = JSON.parse(JSON.stringify(chosenTranche.donjons));
+    const chosenDonjon = pickRandomFrom(chosenTranche.donjons);
+
+    chosenTranche.tiree = true;
+
+    const previousWeeks = (evt.historique || []).map(h => h.semaine);
+    const currentWeek = evt.tirage_actuel ? evt.tirage_actuel.semaine : 0;
+    const semaine = Math.max(0, ...previousWeeks, currentWeek) + 1;
+    const nowIso = new Date().toISOString();
+
+    evt.historique = evt.historique || [];
+    evt.historique.push({
+      semaine, tranche: chosenTranche.tranche, donjon: chosenDonjon.nom, url: chosenDonjon.url, date: nowIso,
+    });
+    evt.tirage_actuel = { semaine, tranche: chosenTranche.tranche, donjon: chosenDonjon.nom, url: chosenDonjon.url };
+
+    result = {
+      tranchesSnapshot,
+      chosenTrancheIndex: evt.tranches.indexOf(chosenTranche),
+      donjonsSnapshot,
+      chosenDonjonIndex: chosenTranche.donjons.indexOf(chosenDonjon),
+      poolWasReset,
+      tranche: chosenTranche.tranche,
+      donjon: chosenDonjon.nom,
+    };
+  });
+
+  if(failReason) throw new Error(failReason);
+  if(!result || syncStatus === "error") throw new Error("La sauvegarde a échoué (problème réseau), réessaie.");
+  return result;
+}
+
+// ---- Roue animée (SVG généré dynamiquement + rotation CSS) ----
+
+function buildWheelSVG(segments, size){
+  size = size || 280;
+  const n = segments.length;
+  const anglePer = 360 / n;
+  const cx = size / 2, cy = size / 2, r = size / 2 - 4;
+  let inner = "";
+  for(let i = 0; i < n; i++){
+    const startAngle = i * anglePer - 90;
+    const endAngle = startAngle + anglePer;
+    const x1 = cx + r * Math.cos(startAngle * Math.PI / 180);
+    const y1 = cy + r * Math.sin(startAngle * Math.PI / 180);
+    const x2 = cx + r * Math.cos(endAngle * Math.PI / 180);
+    const y2 = cy + r * Math.sin(endAngle * Math.PI / 180);
+    const largeArc = anglePer > 180 ? 1 : 0;
+    inner += `<path d="M ${cx} ${cy} L ${x1.toFixed(2)} ${y1.toFixed(2)} A ${r} ${r} 0 ${largeArc} 1 ${x2.toFixed(2)} ${y2.toFixed(2)} Z" fill="${segments[i].color}" stroke="#13101f" stroke-width="2"/>`;
+
+    const midAngle = startAngle + anglePer / 2;
+    const labelR = n > 10 ? r * 0.68 : r * 0.6;
+    const lx = cx + labelR * Math.cos(midAngle * Math.PI / 180);
+    const ly = cy + labelR * Math.sin(midAngle * Math.PI / 180);
+    const fontSize = n > 10 ? 10 : 12;
+    const rawLabel = String(segments[i].label);
+    const label = rawLabel.length > 14 ? rawLabel.slice(0, 13) + "…" : rawLabel;
+    inner += `<text x="${lx.toFixed(2)}" y="${ly.toFixed(2)}" fill="#fff" font-size="${fontSize}" font-weight="700" text-anchor="middle" dominant-baseline="middle" transform="rotate(${(midAngle + 90).toFixed(2)} ${lx.toFixed(2)} ${ly.toFixed(2)})">${escapeHtml(label)}</text>`;
+  }
+  return `<svg viewBox="0 0 ${size} ${size}" width="${size}" height="${size}" style="display:block;">${inner}</svg>`;
+}
+
+function spinWheelTo(wheelWrapEl, segmentCount, winningIndex){
+  const anglePer = 360 / segmentCount;
+  const jitter = (Math.random() * 0.5 - 0.25) * anglePer; // reste dans le segment, évite les bords
+  const targetCenterAngle = winningIndex * anglePer + anglePer / 2 + jitter;
+  const extraSpins = 5 + Math.floor(Math.random() * 2);
+  const finalRotation = extraSpins * 360 + (360 - targetCenterAngle);
+
+  return new Promise(resolve => {
+    wheelWrapEl.style.transition = "transform 4.2s cubic-bezier(0.12,0.67,0.1,1)";
+    requestAnimationFrame(() => {
+      wheelWrapEl.style.transform = `rotate(${finalRotation}deg)`;
+    });
+    const handler = () => {
+      wheelWrapEl.removeEventListener("transitionend", handler);
+      resolve();
+    };
+    wheelWrapEl.addEventListener("transitionend", handler);
+  });
+}
+
+function showRouletteOverlay(){
+  let overlay = document.getElementById("evtRouletteOverlay");
+  if(overlay) return overlay;
+  overlay = document.createElement("div");
+  overlay.id = "evtRouletteOverlay";
+  overlay.className = "evt-roulette-overlay";
+  overlay.innerHTML = `
+    <div class="evt-roulette-box">
+      <div class="evt-roulette-title" id="evtRouletteTitle"></div>
+      <div class="evt-roulette-pointer">▼</div>
+      <div class="evt-roulette-wheel-wrap" id="evtRouletteWheelWrap"></div>
+      <div class="evt-roulette-result" id="evtRouletteResult"></div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  return overlay;
+}
+
+function hideRouletteOverlay(){
+  const overlay = document.getElementById("evtRouletteOverlay");
+  if(overlay) overlay.remove();
+}
+
+async function spinRoulette(title, segments, winningIndex){
+  showRouletteOverlay();
+  document.getElementById("evtRouletteTitle").textContent = title;
+  document.getElementById("evtRouletteResult").textContent = "";
+  const wrap = document.getElementById("evtRouletteWheelWrap");
+  wrap.style.transition = "none";
+  wrap.style.transform = "rotate(0deg)";
+  wrap.innerHTML = buildWheelSVG(segments);
+  await new Promise(r => setTimeout(r, 50)); // laisse le navigateur peindre l'état initial avant de lancer la transition
+  await spinWheelTo(wrap, segments.length, winningIndex);
+  document.getElementById("evtRouletteResult").textContent = "🎉 " + segments[winningIndex].label;
+  await new Promise(r => setTimeout(r, 1200));
+}
 
 async function launchTirage(){
   const btn = document.getElementById("btnLaunchTirage");
   if(btn){ btn.disabled = true; btn.textContent = "Tirage en cours…"; }
 
   try{
-    const res = await fetchWithRetry(JSONBIN_EVENT_BASE + "/latest", { headers: { "X-Access-Key": JSONBIN_EVENT_KEY } });
-    const record = (await res.json()).record;
+    const decision = await decideAndCommitDraw();
 
-    let available = (record.tranches||[]).filter(t => t.active && !t.tiree);
-    let poolWasReset = false;
-    if(available.length === 0){
-      (record.tranches||[]).forEach(t => { if(t.active) t.tiree = false; });
-      record.cycle_number = (record.cycle_number||1) + 1;
-      poolWasReset = true;
-      available = (record.tranches||[]).filter(t => t.active);
+    await spinRoulette(
+      "Tirage de la tranche…",
+      decision.tranchesSnapshot.map(t => ({ label: String(t.tranche), color: trancheColor(t) })),
+      decision.chosenTrancheIndex
+    );
+    await spinRoulette(
+      `Donjon — tranche ${decision.tranche}`,
+      decision.donjonsSnapshot.map(d => ({ label: d.nom, color: "#9169e0" })),
+      decision.chosenDonjonIndex
+    );
+    hideRouletteOverlay();
+
+    if(decision.poolWasReset){
+      alert("Toutes les tranches actives avaient été tirées : le pool a été réinitialisé pour un nouveau cycle.");
     }
-    if(available.length === 0){
-      throw new Error("Aucune tranche active. Réactive au moins une tranche avant de tirer.");
-    }
-
-    const chosenTranche = pickRandomFrom(available);
-    if(!chosenTranche.donjons || chosenTranche.donjons.length === 0){
-      throw new Error(`Aucun donjon enregistré pour la tranche ${chosenTranche.tranche}.`);
-    }
-    const chosenDonjon = pickRandomFrom(chosenTranche.donjons);
-    chosenTranche.tiree = true;
-
-    const previousWeeks = (record.historique||[]).map(h => h.semaine);
-    const currentWeek = record.tirage_actuel ? record.tirage_actuel.semaine : 0;
-    const semaine = Math.max(0, ...previousWeeks, currentWeek) + 1;
-
-    const nowIso = new Date().toISOString();
-    const newEntry = {
-      semaine, tranche: chosenTranche.tranche, donjon: chosenDonjon.nom, url: chosenDonjon.url,
-      montant: null, gagnants: [], date: nowIso,
-    };
-    record.historique = record.historique || [];
-    record.historique.push(newEntry);
-    record.tirage_actuel = { semaine, tranche: chosenTranche.tranche, donjon: chosenDonjon.nom, url: chosenDonjon.url };
-
-    await saveTirageData(record);
-    await notifyDiscordTirage(record);
-
-    tirageData = record;
     renderTirageView();
-    if(poolWasReset) alert("Toutes les tranches actives avaient été tirées : le pool a été réinitialisé pour un nouveau cycle.");
   }catch(err){
+    hideRouletteOverlay();
     console.error("Erreur lors du tirage :", err);
     alert("Le tirage a échoué : " + err.message);
   }finally{
@@ -1789,13 +2445,12 @@ async function launchTirage(){
 
 async function toggleTrancheActive(trancheNumber){
   try{
-    const res = await fetchWithRetry(JSONBIN_EVENT_BASE + "/latest", { headers: { "X-Access-Key": JSONBIN_EVENT_KEY } });
-    const record = (await res.json()).record;
-    const tranche = (record.tranches||[]).find(t => t.tranche === trancheNumber);
-    if(!tranche) return;
-    tranche.active = !tranche.active;
-    await saveTirageData(record);
-    tirageData = record;
+    await mutateSharedData(fresh => {
+      const evt = ensureWakfuEventDefaults(fresh);
+      const tranche = evt.tranches.find(t => t.tranche === trancheNumber);
+      if(tranche) tranche.active = !tranche.active;
+    });
+    if(syncStatus === "error") throw new Error(syncErrorDetail || "erreur réseau");
     renderTirageView();
   }catch(err){
     console.error("Erreur lors du changement de statut de la tranche :", err);
@@ -1805,31 +2460,17 @@ async function toggleTrancheActive(trancheNumber){
 
 function renderTirageView(){
   const el = document.getElementById("tirageView");
-
-  if(tirageStatus === "idle" || tirageStatus === "loading"){
-    el.innerHTML = `<div class="empty-state"><div class="big">Chargement du tirage…</div></div>`;
-    return;
-  }
-  if(tirageStatus === "error" || !tirageData){
-    el.innerHTML = `
-      <div class="empty-state">
-        <div class="big">Impossible de charger les données du tirage</div>
-        <div>Vérifie que <code>JSONBIN_EVENT_ID</code> / <code>JSONBIN_EVENT_KEY</code> sont bien renseignés, et que le bin a été initialisé (<code>seed_event_bin.py</code>).</div>
-      </div>
-    `;
-    return;
-  }
-
-  const d = tirageData;
+  const evt = ensureWakfuEventDefaults(data);
   const canOrganize = isOrganisateur();
-  const current = d.tirage_actuel;
+
+  const current = evt.tirage_actuel;
   const currentHtml = current ? (
-    (current.url
+    current.url
       ? `Semaine <b>${escapeHtml(String(current.semaine))}</b> — Tranche <b>${escapeHtml(String(current.tranche))}</b> — <a href="${escapeHtml(current.url)}" target="_blank" rel="noopener">${escapeHtml(current.donjon)}</a>`
-      : `Semaine <b>${escapeHtml(String(current.semaine))}</b> — Tranche <b>${escapeHtml(String(current.tranche))}</b> — <b>${escapeHtml(current.donjon)}</b>`)
+      : `Semaine <b>${escapeHtml(String(current.semaine))}</b> — Tranche <b>${escapeHtml(String(current.tranche))}</b> — <b>${escapeHtml(current.donjon)}</b>`
   ) : "Aucun tirage pour l'instant.";
 
-  const tranchesHtml = (d.tranches||[]).map(t => {
+  const tranchesHtml = evt.tranches.map(t => {
     let stateClass = "evt-tranche-todo", title = "Disponible";
     if(!t.active){ stateClass = "evt-tranche-inactive"; title = "Désactivée manuellement"; }
     else if(t.tiree){ stateClass = "evt-tranche-done"; title = "Déjà tirée ce cycle"; }
@@ -1838,17 +2479,13 @@ function renderTirageView(){
     return `<span class="${classAttr}"${clickAttr} title="${title}">${escapeHtml(String(t.tranche))}</span>`;
   }).join("");
 
-  const historyRows = (d.historique||[]).slice().reverse().map(row => {
+  const historyRows = (evt.historique || []).slice().reverse().map(row => {
     const dateStr = row.date ? new Date(row.date).toLocaleDateString("fr-FR") : "—";
-    const montantStr = row.montant != null ? `${Number(row.montant).toLocaleString("fr-FR")} kamas` : "—";
-    const gagnantsStr = (row.gagnants && row.gagnants.length) ? row.gagnants.map(g=>escapeHtml(g.nom)).join(", ") : "Aucun";
     return `
       <tr>
         <td>${escapeHtml(String(row.semaine))}</td>
         <td>${row.tranche != null ? escapeHtml(String(row.tranche)) : "—"}</td>
-        <td>${row.donjon ? escapeHtml(row.donjon) : "—"}</td>
-        <td>${montantStr}</td>
-        <td>${gagnantsStr}</td>
+        <td>${row.donjon ? (row.url ? `<a href="${escapeHtml(row.url)}" target="_blank" rel="noopener">${escapeHtml(row.donjon)}</a>` : escapeHtml(row.donjon)) : "—"}</td>
         <td>${dateStr}</td>
       </tr>
     `;
@@ -1862,7 +2499,7 @@ function renderTirageView(){
     </section>
 
     <section class="evt-section">
-      <h2>Progression du cycle n°${escapeHtml(String(d.cycle_number ?? ""))}</h2>
+      <h2>Progression du cycle n°${escapeHtml(String(evt.cycle_number ?? ""))}</h2>
       ${canOrganize ? `
         <p class="evt-legend">
           <span class="evt-tranche-badge evt-tranche-todo">•</span> Disponible
@@ -1878,9 +2515,9 @@ function renderTirageView(){
       <div class="evt-history-wrap">
         <table id="evt-history-table">
           <thead>
-            <tr><th>Semaine</th><th>Tranche</th><th>Donjon</th><th>Gain</th><th>Gagnant(s)</th><th>Date</th></tr>
+            <tr><th>Semaine</th><th>Tranche</th><th>Donjon</th><th>Date</th></tr>
           </thead>
-          <tbody>${historyRows || `<tr><td colspan="6" style="color:var(--dim);">Aucun historique pour l'instant.</td></tr>`}</tbody>
+          <tbody>${historyRows || `<tr><td colspan="4" style="color:var(--dim);">Aucun historique pour l'instant.</td></tr>`}</tbody>
         </table>
       </div>
     </section>
@@ -1891,7 +2528,6 @@ function renderTirageView(){
     if(launchBtn) launchBtn.onclick = launchTirage;
   }
 }
-
 function renderProfileView(){
   const profile = getProfile(myOwnerId);
   const el = document.getElementById("profileView");
@@ -1962,7 +2598,7 @@ document.getElementById("btnShowAddChar").onclick = ()=>{ showAddChar=true; rend
 document.getElementById("tabMine").onclick = async ()=>{ currentView="mine"; showAddChar=false; await refreshSharedData(); render(); };
 document.getElementById("tabAll").onclick = async ()=>{ currentView="all"; showAddChar=false; await refreshSharedData(); render(); };
 document.getElementById("tabEvents").onclick = async ()=>{ currentView="events"; showAddChar=false; await refreshSharedData(); render(); };
-document.getElementById("tabTirage").onclick = async ()=>{ currentView="tirage"; showAddChar=false; render(); await loadTirageData(true); };
+document.getElementById("tabTirage").onclick = ()=>{ currentView="tirage"; showAddChar=false; render(); };
 document.getElementById("tabProfile").onclick = async ()=>{ currentView="profile"; showAddChar=false; await refreshSharedData(); render(); };
 document.getElementById("searchInput").oninput = (e)=>{ searchQuery = e.target.value; renderOwnerGrid(); };
 
