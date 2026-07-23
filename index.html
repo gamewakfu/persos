@@ -350,6 +350,24 @@
   @media (max-width:380px){
     .pill-tab{ flex-basis:100%; }
   }
+
+  /* TIRAGE (données poussées par le bot Discord) */
+  .evt-section{ background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:16px 18px; margin-bottom:14px; }
+  .evt-section h2{ font-family:'Cinzel',serif; font-size:13px; color:var(--gold); margin:0 0 10px; }
+  .evt-current-info{ font-size:13px; color:var(--paper); }
+  .evt-current-info a{ color:var(--teal); }
+  .evt-tranches-grid{ display:flex; flex-wrap:wrap; gap:7px; }
+  .evt-tranche-badge{
+    padding:4px 11px; border-radius:20px; font-size:11px; font-weight:600;
+    min-width:22px; text-align:center; border:1px solid;
+  }
+  .evt-tranche-done{ background:rgba(82,192,184,.14); color:var(--teal); border-color:rgba(82,192,184,.35); }
+  .evt-tranche-todo{ background:var(--panel-2); color:var(--dim); border-color:var(--line); }
+  .evt-history-wrap{ overflow-x:auto; }
+  #evt-history-table{ width:100%; border-collapse:collapse; font-size:12px; white-space:nowrap; }
+  #evt-history-table th, #evt-history-table td{ padding:7px 10px; border-bottom:1px solid var(--line); text-align:left; color:var(--paper); }
+  #evt-history-table th{ color:var(--dim); font-size:10px; text-transform:uppercase; letter-spacing:.06em; font-weight:600; }
+  #evt-history-table tbody tr:hover{ background:rgba(255,255,255,.02); }
 </style>
 </head>
 <body>
@@ -369,6 +387,7 @@
       <button class="pill-tab" id="tabMine">Mon compte</button>
       <button class="pill-tab" id="tabAll">Tous les personnages <span class="count" id="allCount">0</span></button>
       <button class="pill-tab" id="tabEvents">Événements <span class="count" id="eventsCount" style="display:none;">0</span></button>
+      <button class="pill-tab" id="tabTirage">Tirage</button>
       <button class="pill-tab" id="tabProfile">Mon profil</button>
     </div>
 
@@ -390,6 +409,7 @@
     <div id="addCharForm"></div>
     <div id="profileView"></div>
     <div id="eventsView"></div>
+    <div id="tirageView" style="display:none;"></div>
     <div class="owner-grid" id="ownerGrid"></div>
     <div class="empty-state" id="emptyState" style="display:none;">
       <div class="big">Aucun personnage pour l'instant</div>
@@ -457,6 +477,8 @@ let editingCharId = null;
 let editingBuildId = null;
 let showAddEvent = false;
 let editingEventId = null;
+let tirageData = null;
+let tirageStatus = "idle"; // "idle" | "loading" | "ok" | "error"
 
 function uid(){ return Math.random().toString(36).slice(2, 10); }
 
@@ -930,7 +952,7 @@ function canEdit(char){ return char.ownerId === myOwnerId; }
 function render(){
   applyAccentColor();
   renderSyncBadge();
-  const titles = { mine: `Persos de ${myName}`, all: "Persos de la Guilde", events: "Événements", profile: "Mon profil" };
+  const titles = { mine: `Persos de ${myName}`, all: "Persos de la Guilde", events: "Événements", tirage: "Tirage", profile: "Mon profil" };
   document.getElementById("pageTitle").textContent = titles[currentView];
   document.getElementById("allCount").textContent = data.characters.length;
 
@@ -950,6 +972,7 @@ function render(){
   document.getElementById("ownerGrid").style.display = showRoster ? "grid" : "none";
   document.getElementById("profileView").style.display = currentView === "profile" ? "block" : "none";
   document.getElementById("eventsView").style.display = currentView === "events" ? "block" : "none";
+  document.getElementById("tirageView").style.display = currentView === "tirage" ? "block" : "none";
   document.getElementById("bottomHint").style.display = showRoster ? "block" : "none";
 
   if(showRoster){
@@ -959,6 +982,9 @@ function render(){
   }else if(currentView === "events"){
     document.getElementById("emptyState").style.display = "none";
     renderEventsView();
+  }else if(currentView === "tirage"){
+    document.getElementById("emptyState").style.display = "none";
+    renderTirageView();
   }else{
     document.getElementById("emptyState").style.display = "none";
     renderProfileView();
@@ -969,6 +995,7 @@ function renderTabs(){
   document.getElementById("tabMine").classList.toggle("active", currentView === "mine");
   document.getElementById("tabAll").classList.toggle("active", currentView === "all");
   document.getElementById("tabEvents").classList.toggle("active", currentView === "events");
+  document.getElementById("tabTirage").classList.toggle("active", currentView === "tirage");
   document.getElementById("tabProfile").classList.toggle("active", currentView === "profile");
 }
 
@@ -1628,6 +1655,95 @@ async function unregisterFromEvent(eventId, registrationId){
   render();
 }
 
+// ---------- Tirage (données poussées par le bot Discord dans event-data.json) ----------
+
+async function loadTirageData(force){
+  if(tirageData && !force) return; // already loaded once this session; re-render is enough
+  tirageStatus = "loading";
+  renderTirageView();
+  try{
+    // cache: 'no-store' pour toujours avoir la dernière version poussée par le bot
+    const res = await fetch("./event-data.json", { cache: "no-store" });
+    if(!res.ok) throw new Error("HTTP " + res.status);
+    tirageData = await res.json();
+    tirageStatus = "ok";
+  }catch(err){
+    console.error("Erreur de chargement de event-data.json :", err);
+    tirageStatus = "error";
+  }
+  renderTirageView();
+}
+
+function renderTirageView(){
+  const el = document.getElementById("tirageView");
+
+  if(tirageStatus === "idle" || tirageStatus === "loading"){
+    el.innerHTML = `<div class="empty-state"><div class="big">Chargement du tirage…</div></div>`;
+    return;
+  }
+  if(tirageStatus === "error" || !tirageData){
+    el.innerHTML = `
+      <div class="empty-state">
+        <div class="big">Impossible de charger les données du tirage</div>
+        <div>Le fichier <code>event-data.json</code> n'est peut-être pas encore présent à la racine du dépôt, ou le bot n'a pas encore poussé de données.</div>
+      </div>
+    `;
+    return;
+  }
+
+  const d = tirageData;
+  const current = d.tirage_actuel;
+  const currentHtml = current ? (
+    (current.url
+      ? `Semaine <b>${escapeHtml(String(current.semaine))}</b> — Tranche <b>${escapeHtml(String(current.tranche))}</b> — <a href="${escapeHtml(current.url)}" target="_blank" rel="noopener">${escapeHtml(current.donjon)}</a>`
+      : `Semaine <b>${escapeHtml(String(current.semaine))}</b> — Tranche <b>${escapeHtml(String(current.tranche))}</b> — <b>${escapeHtml(current.donjon)}</b>`)
+  ) : "Aucun tirage pour l'instant.";
+
+  const tranchesHtml = (d.tranches||[]).map(t => `
+    <span class="evt-tranche-badge ${t.tiree ? "evt-tranche-done" : "evt-tranche-todo"}" title="${t.tiree ? "Déjà tirée ce cycle" : "Disponible"}">${escapeHtml(String(t.tranche))}</span>
+  `).join("");
+
+  const historyRows = (d.historique||[]).slice().reverse().map(row => {
+    const dateStr = row.date ? new Date(row.date).toLocaleDateString("fr-FR") : "—";
+    const montantStr = row.montant != null ? `${Number(row.montant).toLocaleString("fr-FR")} kamas` : "—";
+    const gagnantsStr = (row.gagnants && row.gagnants.length) ? row.gagnants.map(g=>escapeHtml(g.nom)).join(", ") : "Aucun";
+    return `
+      <tr>
+        <td>${escapeHtml(String(row.semaine))}</td>
+        <td>${row.tranche != null ? escapeHtml(String(row.tranche)) : "—"}</td>
+        <td>${row.donjon ? escapeHtml(row.donjon) : "—"}</td>
+        <td>${montantStr}</td>
+        <td>${gagnantsStr}</td>
+        <td>${dateStr}</td>
+      </tr>
+    `;
+  }).join("");
+
+  el.innerHTML = `
+    <section class="evt-section">
+      <h2>Tirage de la semaine</h2>
+      <p class="evt-current-info">${currentHtml}</p>
+    </section>
+
+    <section class="evt-section">
+      <h2>Progression du cycle n°${escapeHtml(String(d.cycle_number ?? ""))}</h2>
+      <div class="evt-tranches-grid">${tranchesHtml || '<span class="hint" style="margin:0;">Aucune tranche définie.</span>'}</div>
+    </section>
+
+    <section class="evt-section">
+      <h2>Historique</h2>
+      <div class="evt-history-wrap">
+        <table id="evt-history-table">
+          <thead>
+            <tr><th>Semaine</th><th>Tranche</th><th>Donjon</th><th>Gain</th><th>Gagnant(s)</th><th>Date</th></tr>
+          </thead>
+          <tbody>${historyRows || `<tr><td colspan="6" style="color:var(--dim);">Aucun historique pour l'instant.</td></tr>`}</tbody>
+        </table>
+      </div>
+    </section>
+  `;
+}
+
 function renderProfileView(){
   const profile = getProfile(myOwnerId);
   const el = document.getElementById("profileView");
@@ -1670,7 +1786,9 @@ function renderProfileView(){
       console.error("Erreur photo", err);
       uploadBtn.disabled = false;
       uploadBtn.textContent = originalLabel;
-      setSaveStatus("Échec de l'envoi de la photo, réessaie", "var(--danger)");
+      syncStatus = "error";
+      syncErrorDetail = "Échec de l'envoi de la photo, réessaie";
+      renderSyncBadge();
     }
   };
   const rmBtn = document.getElementById("btnRemoveAvatar");
@@ -1696,6 +1814,7 @@ document.getElementById("btnShowAddChar").onclick = ()=>{ showAddChar=true; rend
 document.getElementById("tabMine").onclick = async ()=>{ currentView="mine"; showAddChar=false; await refreshSharedData(); render(); };
 document.getElementById("tabAll").onclick = async ()=>{ currentView="all"; showAddChar=false; await refreshSharedData(); render(); };
 document.getElementById("tabEvents").onclick = async ()=>{ currentView="events"; showAddChar=false; await refreshSharedData(); render(); };
+document.getElementById("tabTirage").onclick = async ()=>{ currentView="tirage"; showAddChar=false; render(); await loadTirageData(true); };
 document.getElementById("tabProfile").onclick = async ()=>{ currentView="profile"; showAddChar=false; await refreshSharedData(); render(); };
 document.getElementById("searchInput").oninput = (e)=>{ searchQuery = e.target.value; renderOwnerGrid(); };
 
