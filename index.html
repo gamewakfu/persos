@@ -2443,6 +2443,27 @@ async function launchTirage(){
   }
 }
 
+async function clearHistorique(){
+  if(!confirm("Êtes-vous sûr de vouloir supprimer tout l'historique ? Cette action est irréversible.")) return;
+
+  const btn = document.getElementById("btnClearHistorique");
+  if(btn) btn.disabled = true;
+
+  try{
+    await mutateSharedData(fresh => {
+      const evt = ensureWakfuEventDefaults(fresh);
+      evt.historique = [];
+    });
+    if(syncStatus === "error") throw new Error(syncErrorDetail || "erreur réseau");
+    renderTirageView();
+  }catch(err){
+    console.error("Erreur lors de la suppression de l'historique :", err);
+    alert("La suppression a échoué : " + err.message);
+  }finally{
+    if(btn) btn.disabled = false;
+  }
+}
+
 async function resetCycleManually(){
   if(!confirm("Êtes-vous sûr de relancer le cycle ?")) return;
 
@@ -2535,6 +2556,7 @@ function renderTirageView(){
 
     <section class="evt-section">
       <h2>Historique</h2>
+      ${canOrganize ? `<button class="btn btn-ghost btn-sm" id="btnClearHistorique" style="margin-bottom:10px;">🗑️ Supprimer l'historique</button>` : ""}
       <div class="evt-history-wrap">
         <table id="evt-history-table">
           <thead>
@@ -2551,6 +2573,8 @@ function renderTirageView(){
     if(launchBtn) launchBtn.onclick = launchTirage;
     const resetBtn = document.getElementById("btnResetCycle");
     if(resetBtn) resetBtn.onclick = resetCycleManually;
+    const clearHistBtn = document.getElementById("btnClearHistorique");
+    if(clearHistBtn) clearHistBtn.onclick = clearHistorique;
   }
 }
 function renderProfileView(){
