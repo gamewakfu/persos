@@ -2453,6 +2453,7 @@ async function clearHistorique(){
     await mutateSharedData(fresh => {
       const evt = ensureWakfuEventDefaults(fresh);
       evt.historique = [];
+      evt.tirage_actuel = null;
     });
     if(syncStatus === "error") throw new Error(syncErrorDetail || "erreur réseau");
     renderTirageView();
