@@ -2443,6 +2443,28 @@ async function launchTirage(){
   }
 }
 
+async function resetCycleManually(){
+  if(!confirm("Êtes-vous sûr de relancer le cycle ?")) return;
+
+  const btn = document.getElementById("btnResetCycle");
+  if(btn) btn.disabled = true;
+
+  try{
+    await mutateSharedData(fresh => {
+      const evt = ensureWakfuEventDefaults(fresh);
+      evt.tranches.forEach(t => { if(t.active) t.tiree = false; });
+      evt.cycle_number = (evt.cycle_number || 1) + 1;
+    });
+    if(syncStatus === "error") throw new Error(syncErrorDetail || "erreur réseau");
+    renderTirageView();
+  }catch(err){
+    console.error("Erreur lors du reset du cycle :", err);
+    alert("Le reset a échoué : " + err.message);
+  }finally{
+    if(btn) btn.disabled = false;
+  }
+}
+
 async function toggleTrancheActive(trancheNumber){
   try{
     await mutateSharedData(fresh => {
@@ -2508,6 +2530,7 @@ function renderTirageView(){
         </p>
       ` : ""}
       <div class="evt-tranches-grid">${tranchesHtml || '<span class="hint" style="margin:0;">Aucune tranche définie.</span>'}</div>
+      ${canOrganize ? `<button class="btn btn-ghost btn-sm" id="btnResetCycle" style="margin-top:10px;">♻️ Relancer le cycle</button>` : ""}
     </section>
 
     <section class="evt-section">
@@ -2526,6 +2549,8 @@ function renderTirageView(){
   if(canOrganize){
     const launchBtn = document.getElementById("btnLaunchTirage");
     if(launchBtn) launchBtn.onclick = launchTirage;
+    const resetBtn = document.getElementById("btnResetCycle");
+    if(resetBtn) resetBtn.onclick = resetCycleManually;
   }
 }
 function renderProfileView(){
